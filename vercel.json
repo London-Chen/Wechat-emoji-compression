@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_ENABLE_EMAIL_VERIFICATION": "false",
+    "VITE_DEV_MODE": "false",
+    "VITE_DEBUG": "false"
+  }
+}
