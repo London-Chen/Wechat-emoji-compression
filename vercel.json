@@ -6,7 +6,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "buildCommand": null,
-  "outputDirectory": "."
+  ]
 }
