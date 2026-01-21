@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表情包图片压缩器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 页面标题区 -->
+        <header class="header">
+            <h1 class="title">表情包图片压缩器</h1>
+            <p class="subtitle">微信表情包上传专用 · 精准压缩</p>
+        </header>
+
+        <!-- 拖拽上传区域 -->
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">🍃</div>
+            <p class="upload-text">拖拽图片到此处</p>
+            <p class="upload-subtext">或点击选择图片</p>
+            <input type="file" id="fileInput" class="file-input" multiple accept="image/*">
+        </div>
+
+        <!-- 封面上传区域 -->
+        <div class="cover-upload-section">
+            <div class="section-title">
+                <span class="title-icon">🖼️</span>
+                <h3>封面图片压缩</h3>
+            </div>
+            <div class="cover-upload-wrapper">
+                <div class="upload-zone-small" id="coverUploadZone">
+                    <div class="upload-icon-small">📸</div>
+                    <p class="upload-text-small">上传封面</p>
+                    <p class="upload-subtext-small">压缩到 300KB 以下</p>
+                    <input type="file" id="coverFileInput" class="file-input" accept="image/*">
+                </div>
+                <div class="cover-preview" id="coverPreview" style="display: none;">
+                    <img id="coverImage" src="" alt="封面预览">
+                    <div class="cover-info" id="coverInfo"></div>
+                    <div class="cover-actions">
+                        <button class="btn btn-sm btn-outline" id="coverPreviewBtn">预览</button>
+                        <button class="btn btn-sm btn-primary" id="coverDownloadBtn" disabled>下载</button>
+                        <button class="btn btn-sm btn-outline" id="coverRemoveBtn">移除</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 压缩设置 -->
+        <div class="settings-panel">
+            <div class="setting-info">
+                <span class="info-icon">🌱</span>
+                <span class="info-text">表情包图片自动压缩到 500KB 以下，封面图片压缩到 300KB 以下</span>
+            </div>
+        </div>
+
+        <!-- 操作栏 -->
+        <div class="action-bar" id="actionBar" style="display: none;">
+            <button class="btn btn-primary" id="downloadAllBtn">
+                <span class="btn-icon">🌿</span>
+                批量下载全部
+            </button>
+            <div class="progress-info">
+                已完成: <span id="completedCount">0</span>/<span id="totalCount">0</span>
+            </div>
+        </div>
+
+        <!-- 图片矩阵列表 -->
+        <div class="image-grid" id="imageGrid"></div>
+    </div>
+
+    <!-- 预览弹窗 -->
+    <div class="modal" id="previewModal">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">✕</button>
+            <img class="modal-image" id="modalImage" src="" alt="预览">
+            <div class="modal-info" id="modalInfo"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
