@@ -1,7 +1,30 @@
+// ==================== 配置常量 ====================
+const CONFIG = {
+    // 文件验证限制
+    LIMITS: {
+        MAX_FILE_SIZE: 50 * 1024 * 1024,  // 50MB 单文件大小限制
+        MAX_FILES_COUNT: 50,               // 最多同时处理文件数
+        MAX_TOTAL_FILES: 100,              // 队列中最大文件总数
+        SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    },
+    // 压缩设置
+    COMPRESSION: {
+        EMOJI_MAX_SIZE_KB: 450,   // 表情包目标大小（确保小于 500KB）
+        COVER_MAX_SIZE_KB: 280,   // 封面目标大小（确保小于 300KB）
+        MAX_ITERATIONS: 10,        // 最大压缩迭代次数
+        COVER_MAX_ITERATIONS: 15,  // 封面最大迭代次数
+        SCALE_FACTORS: [0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
+    },
+    // UI 设置
+    UI: {
+        AUTO_CLOSE_DELAY: 1000
+    }
+};
+
 // 全局状态
 const state = {
     images: [], // 存储所有图片对象
-    maxSizeKB: 450, // 内部压缩目标为 450KB，确保小于 500KB
+    maxSizeKB: CONFIG.COMPRESSION.EMOJI_MAX_SIZE_KB,
     autoOptimize: true, // 自动迭代优化
     coverImage: null, // 封面对象
 };
@@ -72,6 +95,26 @@ function init() {
     modalClose.addEventListener('click', closeModal);
     previewModal.addEventListener('click', (e) => {
         if (e.target === previewModal) closeModal();
+    });
+
+    // 添加全局错误处理
+    setupGlobalErrorHandlers();
+}
+
+// ==================== 全局错误处理 ====================
+
+function setupGlobalErrorHandlers() {
+    // 处理未捕获的 Promise 错误
+    window.addEventListener('unhandledrejection', (event) => {
+        console.error('未处理的 Promise 错误:', event.reason);
+        // 可以在这里添加用户提示
+    });
+
+    // 处理一般错误
+    window.addEventListener('error', (event) => {
+        console.error('JavaScript 错误:', event.error);
+        // 防止页面崩溃
+        event.preventDefault();
     });
 }
 
@@ -153,39 +196,181 @@ function handleCoverFileSelect(e) {
     }, 100);
 }
 
+// ==================== 文件验证 ====================
+
+// 验证单个文件
+function validateFile(file) {
+    const errors = [];
+
+    // 检查文件类型
+    if (!CONFIG.LIMITS.SUPPORTED_FORMATS.includes(file.type)) {
+        errors.push(`不支持的文件格式: ${file.type || '未知'}`);
+    }
+
+    // 检查文件大小
+    if (file.size > CONFIG.LIMITS.MAX_FILE_SIZE) {
+        errors.push(`文件过大: ${formatSize(file.size)}，最大允许 ${formatSize(CONFIG.LIMITS.MAX_FILE_SIZE)}`);
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors: errors
+    };
+}
+
+// 验证文件批量
+function validateFiles(files) {
+    const result = {
+        validFiles: [],
+        invalidFiles: [],
+        errors: []
+    };
+
+    // 检查文件数量
+    if (files.length > CONFIG.LIMITS.MAX_FILES_COUNT) {
+        result.errors.push(`一次最多处理 ${CONFIG.LIMITS.MAX_FILES_COUNT} 个文件，您选择了 ${files.length} 个`);
+    }
+
+    // 检查队列总数
+    const totalAfterAdd = state.images.length + files.length;
+    if (totalAfterAdd > CONFIG.LIMITS.MAX_TOTAL_FILES) {
+        const remaining = CONFIG.LIMITS.MAX_TOTAL_FILES - state.images.length;
+        result.errors.push(`队列已满，最多可再添加 ${remaining} 个文件`);
+    }
+
+    // 验证每个文件
+    for (const file of files) {
+        const validation = validateFile(file);
+        if (validation.valid) {
+            result.validFiles.push(file);
+        } else {
+            result.invalidFiles.push({
+                file: file,
+                errors: validation.errors
+            });
+        }
+    }
+
+    return result;
+}
+
+// 显示验证错误提示
+function showValidationErrors(errors, invalidFiles) {
+    let message = '';
+
+    if (errors.length > 0) {
+        message += errors.join('\n') + '\n';
+    }
+
+    if (invalidFiles.length > 0) {
+        const fileErrors = invalidFiles.slice(0, 3).map(item =>
+            `• ${item.file.name}: ${item.errors.join(', ')}`
+        ).join('\n');
+
+        message += fileErrors;
+
+        if (invalidFiles.length > 3) {
+            message += `\n... 还有 ${invalidFiles.length - 3} 个文件有问题`;
+        }
+    }
+
+    if (message) {
+        alert('⚠️ 部分文件无法处理:\n\n' + message);
+    }
+}
+
 // 处理文件
 async function processFiles(files) {
-    console.log('开始处理', files.length, '个文件');
+    // 验证文件
+    const validation = validateFiles(files);
+
+    // 显示验证错误
+    if (validation.errors.length > 0 || validation.invalidFiles.length > 0) {
+        showValidationErrors(validation.errors, validation.invalidFiles);
+    }
+
+    // 如果没有有效文件，直接返回
+    if (validation.validFiles.length === 0) {
+        console.log('没有有效的文件可处理');
+        return;
+    }
+
+    // 限制处理数量
+    const filesToProcess = validation.validFiles.slice(0, CONFIG.LIMITS.MAX_FILES_COUNT);
+
+    console.log('开始处理', filesToProcess.length, '个文件');
     actionBar.style.display = 'flex';
     updateProgress();
 
-    for (const file of files) {
-        const imageObj = {
-            id: Date.now() + Math.random(),
-            file: file,
-            originalSize: file.size,
-            originalUrl: URL.createObjectURL(file),
-            compressedBlob: null,
-            compressedUrl: null,
-            compressedSize: null,
-            status: 'processing', // processing, success, error
-            error: null,
-        };
+    // 创建所有图片对象
+    const imageObjects = filesToProcess.map(file => ({
+        id: Date.now() + Math.random(),
+        file: file,
+        originalSize: file.size,
+        originalUrl: URL.createObjectURL(file),
+        compressedBlob: null,
+        compressedUrl: null,
+        compressedSize: null,
+        status: 'processing',
+        error: null,
+    }));
 
-        console.log('添加图片:', file.name, '大小:', formatSize(file.size));
+    // 添加到状态并渲染卡片
+    imageObjects.forEach(imageObj => {
+        console.log('添加图片:', imageObj.file.name, '大小:', formatSize(imageObj.originalSize));
         state.images.push(imageObj);
         renderImageCard(imageObj);
-
-        // 开始压缩
-        compressImage(imageObj);
-    }
+    });
 
     updateProgress();
+
+    // 并发压缩（限制并发数）
+    const CONCURRENT_LIMIT = 3;
+    await processWithConcurrency(imageObjects, compressImage, CONCURRENT_LIMIT);
+}
+
+/**
+ * 并发处理函数，限制同时进行的任务数量
+ * @param {Array} items - 要处理的项目数组
+ * @param {Function} processor - 处理函数
+ * @param {number} limit - 最大并发数
+ */
+async function processWithConcurrency(items, processor, limit) {
+    const results = [];
+    const executing = new Set();
+
+    for (const item of items) {
+        const promise = processor(item).then(result => {
+            executing.delete(promise);
+            return result;
+        });
+
+        executing.add(promise);
+        results.push(promise);
+
+        if (executing.size >= limit) {
+            await Promise.race(executing);
+        }
+    }
+
+    return Promise.all(results);
 }
 
 // 处理封面文件
 async function processCoverFile(file) {
+    // 验证封面文件
+    const validation = validateFile(file);
+    if (!validation.valid) {
+        alert('⚠️ 封面文件无法处理:\n\n' + validation.errors.join('\n'));
+        return;
+    }
+
     console.log('开始处理封面:', file.name, '大小:', formatSize(file.size));
+
+    // 如果已有封面，先清理
+    if (state.coverImage) {
+        cleanupCoverImage();
+    }
 
     state.coverImage = {
         file: file,
@@ -209,12 +394,28 @@ async function processCoverFile(file) {
     await compressCoverImage(state.coverImage);
 }
 
-// 压缩封面图片
-async function compressCoverImage(coverObj) {
-    const maxSize = 280 * 1024; // 280KB 目标，确保小于 300KB
+// ==================== 核心压缩算法 ====================
+
+/**
+ * 通用图片压缩核心函数
+ * @param {File} file - 要压缩的文件
+ * @param {Object} options - 压缩选项
+ * @param {number} options.maxSizeBytes - 目标最大大小（字节）
+ * @param {number} options.maxIterations - 最大迭代次数
+ * @param {number[]} options.scaleFactors - 缩放因子数组
+ * @param {number} options.minQuality - 最终最低质量
+ * @returns {Promise<{blob: Blob, success: boolean, error: string|null}>}
+ */
+async function compressImageCore(file, options = {}) {
+    const {
+        maxSizeBytes = CONFIG.COMPRESSION.EMOJI_MAX_SIZE_KB * 1024,
+        maxIterations = CONFIG.COMPRESSION.MAX_ITERATIONS,
+        scaleFactors = CONFIG.COMPRESSION.SCALE_FACTORS,
+        minQuality = 0.6
+    } = options;
 
     try {
-        const img = await loadImage(coverObj.file);
+        const img = await loadImage(file);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
@@ -223,41 +424,42 @@ async function compressCoverImage(coverObj) {
         canvas.width = width;
         canvas.height = height;
 
+        // 绘制原始图片
         ctx.drawImage(img, 0, 0, width, height);
 
-        // 如果原图已经小于目标大小，直接使用
-        if (coverObj.file.size <= maxSize) {
-            coverObj.compressedBlob = coverObj.file;
-            coverObj.compressedSize = coverObj.file.size;
-            coverObj.compressedUrl = coverObj.originalUrl;
-            coverObj.status = 'success';
-            updateCoverInfo();
-            return;
+        // 如果原图已经小于目标大小，直接返回
+        if (file.size <= maxSizeBytes) {
+            return {
+                blob: file,
+                success: true,
+                error: null
+            };
         }
 
         // 二分查找最优质量参数
         let quality = 0.9;
-        let minQuality = 0.1;
-        let maxQuality = 1.0;
+        let minQ = 0.1;
+        let maxQ = 1.0;
         let blob = null;
         let iterations = 0;
-        const maxIterations = 15; // 封面允许更多迭代
 
         while (iterations < maxIterations) {
             blob = await canvasToBlob(canvas, quality);
 
-            if (blob.size <= maxSize) {
-                minQuality = quality;
-                quality = Math.min(maxQuality, (quality + maxQuality) / 2);
+            if (blob.size <= maxSizeBytes) {
+                // 找到合适的大小，尝试提高质量
+                minQ = quality;
+                quality = Math.min(maxQ, (quality + maxQ) / 2);
 
-                if (maxQuality - quality < 0.01) {
+                if (maxQ - quality < 0.01) {
                     break;
                 }
             } else {
-                maxQuality = quality;
-                quality = Math.max(minQuality, (quality + minQuality) / 2);
+                // 文件太大，降低质量
+                maxQ = quality;
+                quality = Math.max(minQ, (quality + minQ) / 2);
 
-                if (quality - minQuality < 0.01) {
+                if (quality - minQ < 0.01) {
                     break;
                 }
             }
@@ -266,9 +468,7 @@ async function compressCoverImage(coverObj) {
         }
 
         // 如果调整质量仍不够，缩小尺寸
-        if (blob.size > maxSize) {
-            const scaleFactors = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25];
-
+        if (blob.size > maxSizeBytes && scaleFactors.length > 0) {
             for (const scale of scaleFactors) {
                 const scaledWidth = Math.round(img.width * scale);
                 const scaledHeight = Math.round(img.height * scale);
@@ -279,34 +479,59 @@ async function compressCoverImage(coverObj) {
 
                 blob = await canvasToBlob(canvas, 0.92);
 
-                if (blob.size <= maxSize) {
+                if (blob.size <= maxSizeBytes) {
                     break;
                 }
             }
         }
 
-        // 最终检查
-        if (blob.size > maxSize) {
-            blob = await canvasToBlob(canvas, 0.6);
+        // 最终尝试低质量压缩
+        if (blob.size > maxSizeBytes) {
+            blob = await canvasToBlob(canvas, minQuality);
         }
 
-        coverObj.compressedBlob = blob;
-        coverObj.compressedSize = blob.size;
-        coverObj.compressedUrl = URL.createObjectURL(blob);
-        coverObj.status = blob.size <= maxSize ? 'success' : 'error';
-
-        if (coverObj.status === 'error') {
-            coverObj.error = `压缩后仍超过目标大小 (${formatSize(blob.size)})`;
-        }
-
-        updateCoverInfo();
+        return {
+            blob: blob,
+            success: blob.size <= maxSizeBytes,
+            error: blob.size > maxSizeBytes ? `压缩后仍超过目标大小 (${formatSize(blob.size)})` : null
+        };
 
     } catch (error) {
-        console.error('封面压缩失败:', error);
-        coverObj.status = 'error';
-        coverObj.error = '压缩失败: ' + error.message;
-        updateCoverInfo();
+        console.error('压缩核心错误:', error);
+        return {
+            blob: null,
+            success: false,
+            error: '压缩失败: ' + error.message
+        };
     }
+}
+
+// 压缩封面图片（使用核心压缩函数）
+async function compressCoverImage(coverObj) {
+    const coverScaleFactors = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25];
+
+    const result = await compressImageCore(coverObj.file, {
+        maxSizeBytes: CONFIG.COMPRESSION.COVER_MAX_SIZE_KB * 1024,
+        maxIterations: CONFIG.COMPRESSION.COVER_MAX_ITERATIONS,
+        scaleFactors: coverScaleFactors,
+        minQuality: 0.5
+    });
+
+    if (result.blob) {
+        coverObj.compressedBlob = result.blob;
+        coverObj.compressedSize = result.blob.size;
+        // 如果返回的是原文件，使用原始 URL；否则创建新 URL
+        coverObj.compressedUrl = result.blob === coverObj.file
+            ? coverObj.originalUrl
+            : URL.createObjectURL(result.blob);
+        coverObj.status = result.success ? 'success' : 'error';
+        coverObj.error = result.error;
+    } else {
+        coverObj.status = 'error';
+        coverObj.error = result.error;
+    }
+
+    updateCoverInfo();
 }
 
 // 更新封面信息显示
@@ -386,113 +611,34 @@ function removeCoverImage() {
     coverInfo.innerHTML = '';
 }
 
-// 核心压缩算法
+// 压缩表情包图片（使用核心压缩函数）
 async function compressImage(imageObj) {
-    const maxSize = state.maxSizeKB * 1024;
+    const iterations = state.autoOptimize ? CONFIG.COMPRESSION.MAX_ITERATIONS : 3;
+    const scaleFactors = state.autoOptimize ? CONFIG.COMPRESSION.SCALE_FACTORS : [];
 
-    try {
-        const img = await loadImage(imageObj.file);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+    const result = await compressImageCore(imageObj.file, {
+        maxSizeBytes: state.maxSizeKB * 1024,
+        maxIterations: iterations,
+        scaleFactors: scaleFactors,
+        minQuality: 0.7
+    });
 
-        let width = img.width;
-        let height = img.height;
-        canvas.width = width;
-        canvas.height = height;
-
-        // 绘制图片
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // 如果原图已经小于目标大小,直接使用
-        if (imageObj.file.size <= maxSize) {
-            imageObj.compressedBlob = imageObj.file;
-            imageObj.compressedSize = imageObj.file.size;
-            imageObj.compressedUrl = imageObj.originalUrl;
-            imageObj.status = 'success';
-            updateImageCard(imageObj);
-            updateProgress();
-            return;
-        }
-
-        // 二分查找最优质量参数
-        let quality = 0.9;
-        let minQuality = 0.1;
-        let maxQuality = 1.0;
-        let blob = null;
-        let iterations = 0;
-        const maxIterations = state.autoOptimize ? 10 : 3;
-
-        while (iterations < maxIterations) {
-            blob = await canvasToBlob(canvas, quality);
-
-            if (blob.size <= maxSize) {
-                // 找到合适的大小,尝试提高质量
-                minQuality = quality;
-                quality = Math.min(maxQuality, (quality + maxQuality) / 2);
-
-                if (maxQuality - quality < 0.01) {
-                    // 已经很接近最优值
-                    break;
-                }
-            } else {
-                // 文件太大,降低质量
-                maxQuality = quality;
-                quality = Math.max(minQuality, (quality + minQuality) / 2);
-
-                if (quality - minQuality < 0.01) {
-                    // 质量已经很低了,尝试缩小尺寸
-                    break;
-                }
-            }
-
-            iterations++;
-        }
-
-        // 如果调整质量仍不够,缩小尺寸
-        if (blob.size > maxSize && state.autoOptimize) {
-            const scaleFactors = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
-
-            for (const scale of scaleFactors) {
-                const scaledWidth = Math.round(img.width * scale);
-                const scaledHeight = Math.round(img.height * scale);
-
-                canvas.width = scaledWidth;
-                canvas.height = scaledHeight;
-                ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
-
-                blob = await canvasToBlob(canvas, 0.92);
-
-                if (blob.size <= maxSize) {
-                    break;
-                }
-            }
-        }
-
-        // 最终检查
-        if (blob.size > maxSize) {
-            // 尝试最后一次低质量压缩
-            blob = await canvasToBlob(canvas, 0.7);
-        }
-
-        imageObj.compressedBlob = blob;
-        imageObj.compressedSize = blob.size;
-        imageObj.compressedUrl = URL.createObjectURL(blob);
-        imageObj.status = blob.size <= maxSize ? 'success' : 'error';
-
-        if (imageObj.status === 'error') {
-            imageObj.error = `压缩后仍超过目标大小 (${formatSize(blob.size)})`;
-        }
-
-        updateImageCard(imageObj);
-        updateProgress();
-
-    } catch (error) {
-        console.error('压缩失败:', error);
+    if (result.blob) {
+        imageObj.compressedBlob = result.blob;
+        imageObj.compressedSize = result.blob.size;
+        // 如果返回的是原文件，使用原始 URL；否则创建新 URL
+        imageObj.compressedUrl = result.blob === imageObj.file
+            ? imageObj.originalUrl
+            : URL.createObjectURL(result.blob);
+        imageObj.status = result.success ? 'success' : 'error';
+        imageObj.error = result.error;
+    } else {
         imageObj.status = 'error';
-        imageObj.error = '压缩失败: ' + error.message;
-        updateImageCard(imageObj);
-        updateProgress();
+        imageObj.error = result.error;
     }
+
+    updateImageCard(imageObj);
+    updateProgress();
 }
 
 // 加载图片
@@ -581,7 +727,7 @@ function updateProgress() {
 }
 
 // 预览图片
-window.previewImage = function(id) {
+window.previewImage = function (id) {
     const imageObj = state.images.find(img => img.id === id);
     if (!imageObj) return;
 
@@ -601,7 +747,7 @@ function closeModal() {
 }
 
 // 下载单张图片
-window.downloadImage = function(id) {
+window.downloadImage = function (id) {
     const imageObj = state.images.find(img => img.id === id);
     if (!imageObj || !imageObj.compressedBlob) return;
 
@@ -660,5 +806,77 @@ function formatSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// 初始化
-init();
+// ==================== 内存管理 ====================
+
+// 清理单个图片对象的 URL
+function cleanupImageObject(imageObj) {
+    if (imageObj.originalUrl) {
+        URL.revokeObjectURL(imageObj.originalUrl);
+        imageObj.originalUrl = null;
+    }
+    if (imageObj.compressedUrl) {
+        URL.revokeObjectURL(imageObj.compressedUrl);
+        imageObj.compressedUrl = null;
+    }
+}
+
+// 清理封面图片
+function cleanupCoverImage() {
+    if (state.coverImage) {
+        cleanupImageObject(state.coverImage);
+        state.coverImage = null;
+    }
+}
+
+// 清理所有图片
+function cleanupAllImages() {
+    state.images.forEach(imageObj => {
+        cleanupImageObject(imageObj);
+    });
+    state.images = [];
+}
+
+// 清理所有资源
+function cleanup() {
+    cleanupAllImages();
+    cleanupCoverImage();
+    console.log('✅ 所有资源已清理');
+}
+
+// 移除单个图片
+function removeImage(id) {
+    const index = state.images.findIndex(img => img.id === id);
+    if (index !== -1) {
+        const imageObj = state.images[index];
+        cleanupImageObject(imageObj);
+
+        // 移除 DOM 元素
+        const card = document.getElementById(`card-${id}`);
+        if (card) {
+            card.remove();
+        }
+
+        // 从数组中移除
+        state.images.splice(index, 1);
+        updateProgress();
+
+        // 如果没有图片了，隐藏操作栏
+        if (state.images.length === 0) {
+            actionBar.style.display = 'none';
+        }
+    }
+}
+
+// 页面卸载时清理资源
+window.addEventListener('beforeunload', () => {
+    cleanup();
+});
+
+// 等待 DOM 完全加载后再初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // DOM 已经加载完成
+    init();
+}
+

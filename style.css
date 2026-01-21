@@ -761,3 +761,396 @@ body::before {
         justify-content: center;
     }
 }
+
+/* ==================== 认证界面样式 ==================== */
+
+/* 页面头部顶部 */
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+/* 用户区域 */
+.user-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--secondary-color);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color);
+}
+
+.user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 认证模态框 */
+.auth-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.auth-modal.active {
+    display: flex;
+}
+
+.auth-modal-content {
+    background: var(--secondary-color);
+    border-radius: var(--border-radius);
+    padding: 40px;
+    max-width: 440px;
+    width: 100%;
+    position: relative;
+    box-shadow: var(--card-shadow-hover);
+    border: 1px solid var(--border-color);
+}
+
+.auth-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: var(--secondary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-modal-close:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* 认证表单 */
+.auth-form h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 28px;
+    text-align: center;
+}
+
+.auth-form form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+/* 重新发送验证邮件区域 */
+.auth-resend-section {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px 8px;
+    transition: var(--transition);
+}
+
+.btn-link:hover {
+    color: var(--accent-hover);
+}
+
+.auth-form input[type="email"],
+.auth-form input[type="password"] {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    font-size: 15px;
+    background: white;
+    color: var(--text-primary);
+    transition: var(--transition);
+    font-family: inherit;
+}
+
+.auth-form input[type="email"]:focus,
+.auth-form input[type="password"]:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(107, 142, 35, 0.1);
+}
+
+.auth-form input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* 认证按钮 */
+.btn-block {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.btn-google {
+    background: white;
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.btn-google:hover {
+    background: var(--secondary-color);
+    border-color: var(--text-secondary);
+    transform: translateY(-1px);
+    box-shadow: var(--card-shadow);
+}
+
+.btn-google svg {
+    flex-shrink: 0;
+}
+
+/* 分隔线 */
+.auth-divider {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 20px 0;
+    position: relative;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.auth-divider::before {
+    left: 0;
+}
+
+.auth-divider::after {
+    right: 0;
+}
+
+/* 切换登录/注册 */
+.auth-switch {
+    text-align: center;
+    margin-top: 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.auth-switch a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.auth-switch a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+/* 错误和成功消息 */
+.auth-error,
+.auth-success {
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.auth-error {
+    background: rgba(229, 115, 115, 0.1);
+    color: var(--error-color);
+    border: 1px solid rgba(229, 115, 115, 0.3);
+}
+
+.auth-success {
+    background: rgba(124, 179, 66, 0.1);
+    color: var(--success-color);
+    border: 1px solid rgba(124, 179, 66, 0.3);
+}
+
+/* ==================== 等待验证界面样式 ==================== */
+
+.verify-pending-icon {
+    font-size: 64px;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.verify-pending-content {
+    text-align: center;
+}
+
+.verify-email {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--secondary-color);
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 16px 0;
+    word-break: break-all;
+}
+
+.verify-instruction {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    font-size: 15px;
+}
+
+.verify-steps {
+    text-align: left;
+    list-style: none;
+    padding: 0;
+    margin: 20px 0;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.verify-steps li {
+    padding: 10px 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.verify-steps li:first-child {
+    padding-top: 0;
+}
+
+.verify-steps li:last-child {
+    padding-bottom: 0;
+}
+
+.verify-tips {
+    background: rgba(107, 142, 35, 0.1);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 20px 0;
+    text-align: left;
+}
+
+.verify-tips p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--accent-color);
+}
+
+.verify-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 24px 0;
+}
+
+.verify-checking {
+    margin-top: 24px;
+    padding: 16px;
+    background: rgba(93, 78, 55, 0.05);
+    border-radius: 8px;
+}
+
+.verify-checking p {
+    margin: 12px 0 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* 加载动画 */
+.spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .header-top {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .user-section {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .auth-modal-content {
+        padding: 30px 24px;
+        margin: 10px;
+    }
+
+    .auth-form h2 {
+        font-size: 24px;
+    }
+
+    .user-name {
+        max-width: 100px;
+    }
+}
+
