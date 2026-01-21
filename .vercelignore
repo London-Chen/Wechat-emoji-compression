@@ -11,7 +11,7 @@ build
 .env.*.local
 
 # Config files with sensitive data
-auth-config.js
+# auth-config.js - 临时注释以便部署，后续通过环境变量配置
 
 # IDE files
 .vscode
